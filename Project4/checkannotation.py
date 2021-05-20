@@ -76,33 +76,37 @@ class Check_Annotation:
             else:
                 return 1 + max(layer(sublayer) for sublayer in iterable)
                 
-            return 1+ max( layer(sublayer) for sublayer in iterable)    
+            return 1+ max( layer(sublayer) for sublayer in iterable)   
+        def ERROR(param, annot, value): 
+            raise AssertionError(f' {param} failed annotation check(wrong type): value = {value}\n \
+                        was type {type(value)} ...should be type {annot}  ')
         
         def check_iterable_base(annot,value,data_structure):
             #Fail if value is not a list
             if type(value) is not data_structure: 
-                return False
+                ERROR(param, annot, value)
             else:
                 #annot has just one element-annotation, 
                 #and any of the elements in the value list fails the element-annotation check 
                 if len(annot) == 1: 
                     #Base Case:
-                    
+                    # def check(self,param,annot,value,check_history=''): 
                     for i in value: 
-                        if type(i) != annot[0]:
-                            return False
-                    return True 
+                        self.check(param, annot[0], i) 
+                        
+                    
                 #annot has more than one element-annotation, and
                 # the annot and value lists have a different number of elements, or
                 # any element in the value list fails its corresponding element-annotation check
                 else: 
                     if len(annot) != len(value):
-                        return False 
+                        ERROR(param, annot, value)
+                        
                     else:
                         for i,j in zip(value, annot):
                             if not isinstance(i,j):
-                                return False 
-                        return True   
+                                ERROR(param, annot, value)
+                        
                     
                         
         def check_iterable(annot,value,param):
@@ -112,24 +116,25 @@ class Check_Annotation:
                 #print(check_history)
                 return check_iterable_base(annot,value,type(annot))
             else:
-                if layer(value) == 1:
-                    return self.check(param,annot[0],value[0],check_history=check_history)
-                else:
-                    return all(self.check(param,annot[0],i,check_history=check_history) for i in value)
+                # if layer(value) == 1:
+                    # return self.check(param,annot[0],value[0],check_history=check_history)
+                # else:
+                [self.check(param,annot[0],i,check_history=check_history) for i in value]
                    
         def check_set(TYPE):
             assert type(value) == TYPE, f" {param} failed annotation check(wrong type): value = {value}\
   was type {type(value)} ...should be type {TYPE}"
             assert len(annot) == 1,f"{param} annotation inconsistency: set should have 1 item but had 2\
   annotation = {annot}"
-            return all([isinstance(obj,list(annot)[0] ) for obj in value])
+            [isinstance(obj,list(annot)[0] ) for obj in value]
         
         # MEGA Ifs
         if annot == None: 
-            return True
+            pass
         
         elif type(annot) == type:
-            return isinstance(value,annot)
+            if not isinstance(value,annot): 
+                ERROR(param, annot, value)
         elif type(annot) == list: 
             return check_iterable(annot,value,param)
             
@@ -141,22 +146,48 @@ class Check_Annotation:
             assert len(annot) == 1,f"{param} annotation inconsistency: dict should have 1 item but had 2\
   annotation = {annot}"
             if not isinstance(value, dict):
-                return False
+                ERROR(param, annot, value)
             #Check if the key and value match the annots: value: 
-            for i in range(len(value)):
-                if type( list(value.keys())[i] ) != list(annot.keys())[0]:
-                    return False
-                if type( list(value.values())[i] ) != list(annot.values())[0]:
-                    return False 
-            return True 
+            # check(param,annot[0],value[0],check_history=check_history)
+            [self.check( param, list(annot.keys())[0], list(value.keys())[i] )  for i in range(len(value))]
+            [self.check( param, list(annot.values())[0], list(value.values())[i] )  for i in range(len(value))]
+                # if type( list(value.values())[i] ) != list(annot.values())[0]:
+                    # return False 
+            
+        
         elif isinstance(annot, set): 
             return check_set(set)
         elif isinstance(annot,frozenset):
             return check_set(frozenset)
+        elif inspect.isfunction(annot):
+            assert len(inspect.getargspec(annot).args) == 1,\
+            f'AssertionError: {param} annotation inconsistency: predicate should have 1 parameter but had {len(inspect.getargspec(annot).args)}\
+              predicate = {annot}'
+           
+            try: 
+                if annot(value) == False: 
+                    ERROR(param, annot, value)
+                
+            except Exception:
+                ERROR(param, annot, value)
+            
+                
+                
         else:
-            pass
-             
-  
+            try: 
+                if annot.__check_annotation__(self.check, param, value, check_history) == False: 
+                    ERROR(param, annot, value)
+                
+            #case 1: no check annotation 
+            
+            #case 2:check annotation fail
+            
+            #case 3: check annotation raise other exceptions
+            except AttributeError: 
+                raise AssertionError(f'AssertionError: {param} annotation undecipherable: {annot}')
+            except Exception: 
+                ERROR(param, annot, value)
+            
             
             
         
@@ -197,10 +228,8 @@ class Check_Annotation:
                 for arg_name in param_arg:
                     
                     if  param_annot.get(arg_name) is not None: 
-                        assert self.check(param = arg_name ,annot = param_annot[arg_name],
-                                          value = param_arg[arg_name], check_history=''),\
-                        f' {arg_name} failed annotation check(wrong type): value = {param_arg[arg_name]}\n \
-                        was type {type(param_arg[arg_name])} ...should be type {param_annot[arg_name]}  '
+                        self.check(param = arg_name ,annot = param_annot[arg_name],
+                                          value = param_arg[arg_name], check_history='')
                         except_to_raise = None
                             
             # On first AssertionError, print the source lines of the function and reraise 
@@ -220,10 +249,17 @@ class Check_Annotation:
 
 
   
-if __name__ == '__main__':     
-    # an example of testing a simple annotation  
-    def f(x : frozenset([str])): pass
-    f = Check_Annotation(f)   
+if __name__ == '__main__':    
+    # def f(x : {Check_All_OK(str,lambda x : len(x)<=3):Check_Any_OK(str,int)}): pass
+    # f = Check_Annotation(f)
+    # f({'a' : 1, 'b': 2, 'c':'c'}) 
+    # # an example of testing a simple annotation 
+    # def f(x : [int]):pass
+    # f = Check_Annotation(f)   
+    # f([1,'b']) 
+    #
+    # def f(x : frozenset([str])): pass
+    # f = Check_Annotation(f)   
    # f(frozenset({'a','b'}))
     #driver tests
     import driver

@@ -9,8 +9,7 @@ def layer(iterable)->int:
         return 0
     else:
         return 1 + max(layer(sublayer) for sublayer in iterable)
-        
-    return 1+ max( layer(sublayer) for sublayer in iterable)    
+         
 
 def check(param,annot,value,check_history=''): 
     
@@ -45,16 +44,13 @@ def check(param,annot,value,check_history=''):
         if layer(annot) == 1:
             return check_iterable_base(annot,value,data_structures)
         else:
-            if layer(value) == 1:
-                return check(param,annot[0],value[0],check_history='')
-            else:
-                return all(check(param,annot[0],i,check_history='') for i in value)
+            return all(check(param,annot[0],i,check_history='') for i in value)
             
     if type(annot) == list: 
         return check_iterable(list,annot,value,param)
 
 if __name__ == '__main__':
     param = 'x'
-    annot = [[str,int]]
-    value = [['a',1],['1',3],['3',3]]
+    annot = [[int]]
+    value = [[1,2],[3,'1']]
     print(check(param,annot,value))
