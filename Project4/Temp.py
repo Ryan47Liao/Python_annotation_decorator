@@ -3,7 +3,8 @@ Created on May 20, 2021
 
 @author: alienware
 '''
-def layer(iterable):
+def layer(iterable)->int:
+    "Return the maximum depth of an iterable."
     if not isinstance(iterable, (list,tuple,set,frozenset,dict)):
         return 0
     else:
@@ -39,16 +40,18 @@ def check(param,annot,value,check_history=''):
                             return False 
                     return True   
                 
-    
-    if type(annot) == list: 
+    def check_iterable(data_structures,annot,value,param):
         #Base Case:
         if layer(annot) == 1:
-            return check_iterable_base(annot,value,list)
+            return check_iterable_base(annot,value,data_structures)
         else:
             if layer(value) == 1:
                 return check(param,annot[0],value[0],check_history='')
             else:
                 return all(check(param,annot[0],i,check_history='') for i in value)
+            
+    if type(annot) == list: 
+        return check_iterable(list,annot,value,param)
 
 if __name__ == '__main__':
     param = 'x'

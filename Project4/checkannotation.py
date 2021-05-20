@@ -1,3 +1,10 @@
+'''
+# Submitter: bliao2 (Liao, Bowen)
+# Partner: boiv (Vo, Boi Loc) 
+We certify that we worked cooperatively on this programming assignment, 
+according to the rules for pair programming 
+'''
+
 from goody import type_as_str
 import inspect
 
@@ -61,16 +68,33 @@ class Check_Annotation:
     # Check whether param's annot is correct for value, adding to check_history
     #    if recurs; defines many local function which use it parameters.  
     def check(self,param,annot,value,check_history=''): 
+        check_history += f'Checking:{annot}|{value}\n'
+        def layer(iterable)->int:
+            "Return the maximum depth of an iterable."
+            if not isinstance(iterable, (list,tuple,set,frozenset,dict)):
+                return 0
+            else:
+                return 1 + max(layer(sublayer) for sublayer in iterable)
+                
+            return 1+ max( layer(sublayer) for sublayer in iterable)    
         
-        def check_iterable(data_structure):
+        def check_iterable_base(annot,value,data_structure):
+            #Fail if value is not a list
             if type(value) is not data_structure: 
                 return False
-            else: 
+            else:
+                #annot has just one element-annotation, 
+                #and any of the elements in the value list fails the element-annotation check 
                 if len(annot) == 1: 
+                    #Base Case:
+                    
                     for i in value: 
                         if type(i) != annot[0]:
                             return False
                     return True 
+                #annot has more than one element-annotation, and
+                # the annot and value lists have a different number of elements, or
+                # any element in the value list fails its corresponding element-annotation check
                 else: 
                     if len(annot) != len(value):
                         return False 
@@ -79,33 +103,51 @@ class Check_Annotation:
                             if not isinstance(i,j):
                                 return False 
                         return True   
+                    
+                        
+        def check_iterable(annot,value,param):
+            nonlocal check_history
+            #Base Case:
+            if layer(annot) == 1:
+                #print(check_history)
+                return check_iterable_base(annot,value,type(annot))
+            else:
+                if layer(value) == 1:
+                    return self.check(param,annot[0],value[0],check_history=check_history)
+                else:
+                    return all(self.check(param,annot[0],i,check_history=check_history) for i in value)
                    
         def check_set(TYPE):
-            assert type(value) == set, f" {param} failed annotation check(wrong type): value = {value}\
+            assert type(value) == TYPE, f" {param} failed annotation check(wrong type): value = {value}\
   was type {type(value)} ...should be type {TYPE}"
             assert len(annot) == 1,f"{param} annotation inconsistency: set should have 1 item but had 2\
   annotation = {annot}"
             return all([isinstance(obj,list(annot)[0] ) for obj in value])
         
-        
+        # MEGA Ifs
         if annot == None: 
             return True
         
         elif type(annot) == type:
             return isinstance(value,annot)
         elif type(annot) == list: 
-            return check_iterable(list)
+            return check_iterable(annot,value,param)
+            
         elif type(annot) == tuple: 
-            return check_iterable(tuple)
+            return check_iterable(annot,value,param)
+        
         elif isinstance(annot, dict):
             #When there are more than 1 pair of key/value
             assert len(annot) == 1,f"{param} annotation inconsistency: dict should have 1 item but had 2\
   annotation = {annot}"
-            #Check if the key and value match the annots: value: 
-            if type( value.keys()[0] ) != annot.keys()[0]:
+            if not isinstance(value, dict):
                 return False
-            if type( value.values()[0] ) != annot.values()[0]:
-                return False 
+            #Check if the key and value match the annots: value: 
+            for i in range(len(value)):
+                if type( list(value.keys())[i] ) != list(annot.keys())[0]:
+                    return False
+                if type( list(value.values())[i] ) != list(annot.values())[0]:
+                    return False 
             return True 
         elif isinstance(annot, set): 
             return check_set(set)
@@ -180,13 +222,9 @@ class Check_Annotation:
   
 if __name__ == '__main__':     
     # an example of testing a simple annotation  
-    def f(x : [[str]]): pass
+    def f(x : frozenset([str])): pass
     f = Check_Annotation(f)   
-    try:  
-        f([['a','b'],['c','d']])
-    except Exception as E:
-        print(Exception)
-        print(E) 
+   # f(frozenset({'a','b'}))
     #driver tests
     import driver
     driver.default_file_name = 'bscp4S21.txt'
