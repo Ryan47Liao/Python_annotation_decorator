@@ -77,6 +77,7 @@ class Check_Annotation:
                 return 1 + max(layer(sublayer) for sublayer in iterable)
                 
             return 1+ max( layer(sublayer) for sublayer in iterable)   
+        
         def ERROR(param, annot, value): 
             raise AssertionError(f' {param} failed annotation check(wrong type): value = {value}\n \
                         was type {type(value)} ...should be type {annot}  ')
@@ -127,7 +128,20 @@ class Check_Annotation:
             assert len(annot) == 1,f"{param} annotation inconsistency: set should have 1 item but had 2\
   annotation = {annot}"
             [isinstance(obj,list(annot)[0] ) for obj in value]
+            
+            
+        def ERROR_STR(param, anot, value):
+            error = f"'{param}' failed annotation check(str predicate: {annot}) args for evaluation: "
+            for param in value:
+                error += str(param) + '->' + str(value[param]) + ', '
+            error = error[:-2]
+            raise AssertionError(error)
         
+        def ERROR_EXCEPTION(param, anot, value):
+            raise AssertionError(f"'{param}' annotation check(str predicate: {annot}) raised exception \n \
+        exception = {type(e).__name__}: {e} ")
+            
+            
         # MEGA Ifs
         if annot == None: 
             pass
@@ -168,11 +182,36 @@ class Check_Annotation:
                 if annot(value) == False: 
                     ERROR(param, annot, value)
                 
-            except Exception:
-                ERROR(param, annot, value)
+            except TypeError as e:
+                ERROR_EXCEPTION(param, annot, value)
+        elif type(annot) == str: 
             
-                
-                
+            temp = '(lambda '
+            for param in value: 
+                if param in annot: 
+                    if param == 'return':
+                        param = '_' + str(param)
+                    temp += param  + ','
+            
+            temp = temp[:-1] + ':' 
+            temp += annot + ')' + '('
+            
+            for param in value: 
+                if param in annot:
+                    
+                    temp += f"{repr(value[str(param)])},"
+                    
+            temp = temp[:-1] + ')'
+            # print(value)
+            # print(temp)
+            
+            try: 
+                if eval(temp) == False: 
+                    ERROR_STR(param, annot, value)
+               
+            except TypeError  as e:
+                ERROR_EXCEPTION(param, annot, value)
+           
         else:
             try: 
                 if annot.__check_annotation__(self.check, param, value, check_history) == False: 
@@ -185,8 +224,8 @@ class Check_Annotation:
             #case 3: check annotation raise other exceptions
             except AttributeError: 
                 raise AssertionError(f'AssertionError: {param} annotation undecipherable: {annot}')
-            except Exception: 
-                ERROR(param, annot, value)
+            except TypeError as e: 
+                ERROR_EXCEPTION(param, annot, value)
             
             
             
@@ -225,31 +264,42 @@ class Check_Annotation:
                 param_arg = param_arg_bindings()
                 if 'return' in param_annot: 
                     param_arg['return'] = self._f(*args, **kargs)
-                for arg_name in param_arg:
-                    
-                    if  param_annot.get(arg_name) is not None: 
-                        self.check(param = arg_name ,annot = param_annot[arg_name],
-                                          value = param_arg[arg_name], check_history='')
-                        except_to_raise = None
-                            
+                
+                if len(param_annot) == 1 and type(param_annot.get(str(list(param_annot.keys())[0]))) == str: 
+                    if  param_annot.get(list(param_annot.keys())[0]) is not None : 
+                        self.check(param = list(param_annot.keys())[0] ,annot = param_annot[list(param_annot.keys())[0]],
+                                          value = param_arg, check_history='')
+                else:        
+                              
+                    for arg_name in param_arg:
+                        
+                        if  param_annot.get(arg_name) is not None : 
+                            self.check(param = arg_name ,annot = param_annot[arg_name],
+                                              value = param_arg[arg_name], check_history='')
+                            except_to_raise = None
+                                
             # On first AssertionError, print the source lines of the function and reraise 
             except AssertionError:
-                # print(80*'-')
-                # for l in inspect.getsourcelines(self._f)[0]: # ignore starting line #
-                    # print(l.rstrip())
-                # print(80*'-')
-                except_to_raise = AssertionError(f' {arg_name} failed annotation check(wrong type): value = {param_arg[arg_name]}\n \
-                        was type {type(param_arg[arg_name])} ...should be type {param_annot[arg_name]}  ') 
-            finally:
-                if except_to_raise is not None:
-                    raise except_to_raise
-        
+                raise
+            # finally:
+                # if except_to_raise is not None:
+                    # raise except_to_raise
+                    
         return self._f(*args, **kargs)
 
 
 
   
-if __name__ == '__main__':    
+if __name__ == '__main__':   
+     
+    # def f(x:'x>0'): pass
+    # f = Check_Annotation(f)
+    # f('a')
+    
+    # def f(x,y)->'_return < x or _return < y': return x + y
+    # f = Check_Annotation(f)
+    # f(5,3)
+    
     # def f(x : {Check_All_OK(str,lambda x : len(x)<=3):Check_Any_OK(str,int)}): pass
     # f = Check_Annotation(f)
     # f({'a' : 1, 'b': 2, 'c':'c'}) 
@@ -262,6 +312,7 @@ if __name__ == '__main__':
     # f = Check_Annotation(f)   
    # f(frozenset({'a','b'}))
     #driver tests
+    
     import driver
     driver.default_file_name = 'bscp4S21.txt'
     # driver.default_show_exception= True
